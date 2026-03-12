@@ -168,22 +168,26 @@ func AddRemoteSubnetPolicy(network *hcn.HostComputeNetwork, settings *hcn.Remote
 		return fmt.Errorf("failed to marshall remote subnet route policy settings: %v", err)
 	}
 
-	network.AddPolicy(hcn.PolicyNetworkRequest{
+	if err := network.AddPolicy(hcn.PolicyNetworkRequest{
 		Policies: []hcn.NetworkPolicy{{
 			Type:     hcn.RemoteSubnetRoute,
 			Settings: json,
 		}},
-	})
+	}); err != nil {
+		return fmt.Errorf("failed to add remote subnet route policy: %v", err)
+	}
 	return nil
 }
 
 func removeOneRemoteSubnetPolicy(network *hcn.HostComputeNetwork, settings []byte) error {
-	network.RemovePolicy(hcn.PolicyNetworkRequest{
+	if err := network.RemovePolicy(hcn.PolicyNetworkRequest{
 		Policies: []hcn.NetworkPolicy{{
 			Type:     hcn.RemoteSubnetRoute,
 			Settings: settings,
 		}},
-	})
+	}); err != nil {
+		return fmt.Errorf("failed to remove remote subnet route policy: %v", err)
+	}
 	return nil
 }
 
