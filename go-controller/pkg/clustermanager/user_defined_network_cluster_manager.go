@@ -33,6 +33,9 @@ type userDefinedNetworkClusterManager struct {
 
 	errorReporter  NetworkStatusReporter
 	nodeReconciler *nodecontroller.NodeController
+
+	// nodeAnnotationBatcher batches node annotation updates across networks
+	nodeAnnotationBatcher *node.NodeAnnotationBatcher
 }
 
 func newUserDefinedNetworkClusterManager(
@@ -41,14 +44,16 @@ func newUserDefinedNetworkClusterManager(
 	networkManager networkmanager.Interface,
 	recorder record.EventRecorder,
 	nodeReconciler *nodecontroller.NodeController,
+	batcher *node.NodeAnnotationBatcher,
 ) (*userDefinedNetworkClusterManager, error) {
 	klog.Infof("Creating user-defined network cluster manager")
 	sncm := &userDefinedNetworkClusterManager{
-		ovnClient:      ovnClient,
-		watchFactory:   wf,
-		networkManager: networkManager,
-		recorder:       recorder,
-		nodeReconciler: nodeReconciler,
+		ovnClient:             ovnClient,
+		watchFactory:          wf,
+		networkManager:        networkManager,
+		recorder:              recorder,
+		nodeReconciler:        nodeReconciler,
+		nodeAnnotationBatcher: batcher,
 	}
 	return sncm, nil
 }
@@ -78,6 +83,7 @@ func (sncm *userDefinedNetworkClusterManager) NewNetworkController(nInfo util.Ne
 		sncm.networkManager,
 		sncm.errorReporter,
 		sncm.nodeReconciler,
+		sncm.nodeAnnotationBatcher,
 	)
 	return sncc, nil
 }
@@ -187,9 +193,10 @@ func (sncm *userDefinedNetworkClusterManager) newDummyNetworkController(topoType
 		sncm.networkManager,
 		nil,
 		sncm.nodeReconciler,
+		sncm.nodeAnnotationBatcher,
 	)
 	if nc.hasNodeAllocation() {
-		nc.nodeAllocator = node.NewNodeAllocator(ovntypes.InvalidID, nc.GetNetInfo(), nc.watchFactory.NodeCoreInformer().Lister(), nc.kube, nil)
+		nc.nodeAllocator = node.NewNodeAllocator(ovntypes.InvalidID, nc.GetNetInfo(), nc.watchFactory.NodeCoreInformer().Lister(), nc.kube, nil, sncm.nodeAnnotationBatcher)
 	}
 	return nc, nil
 }
