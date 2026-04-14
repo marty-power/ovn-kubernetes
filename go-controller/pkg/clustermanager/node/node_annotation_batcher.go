@@ -4,7 +4,6 @@
 package node
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
 	"strconv"
@@ -16,6 +15,7 @@ import (
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 
+	nodecontroller "github.com/ovn-kubernetes/ovn-kubernetes/go-controller/pkg/controllers/node"
 	"github.com/ovn-kubernetes/ovn-kubernetes/go-controller/pkg/kube"
 	"github.com/ovn-kubernetes/ovn-kubernetes/go-controller/pkg/types"
 	"github.com/ovn-kubernetes/ovn-kubernetes/go-controller/pkg/util"
@@ -54,6 +54,9 @@ type NodeAnnotationBatcher struct {
 	stopChan chan struct{}
 	wg       *sync.WaitGroup
 	stopping bool // Set during shutdown to prevent requeueing failures
+
+	// Cache for parsed node annotations to avoid redundant parsing during retries
+	cache *nodecontroller.NodeAnnotationCache
 }
 
 // pendingNodeUpdate accumulates annotation updates for a single node
@@ -74,6 +77,7 @@ func NewNodeAnnotationBatcher(kube kube.Interface, nodeLister listers.NodeLister
 		triggerChan:    make(chan struct{}, 1),
 		stopChan:       stopChan,
 		wg:             wg,
+		cache:          nodecontroller.NewNodeAnnotationCache(),
 	}
 }
 
@@ -304,22 +308,31 @@ func (b *NodeAnnotationBatcher) updateNodeAnnotations(nodeName string, pending *
 }
 
 func (b *NodeAnnotationBatcher) parseSubnets(node *corev1.Node) (map[string][]*net.IPNet, error) {
-	return util.ParseNodeHostSubnetsAnnotation(node)
+	return b.cache.ParseSubnetMapCached(node, types.NodeSubnetsAnnotation, true)
 }
 
 func (b *NodeAnnotationBatcher) parseNetworkIDs(node *corev1.Node) (map[string]int, error) {
-	return util.GetNodeNetworkIDsAnnotationNetworkIDs(node)
+	networkIDsStrMap, err := b.cache.ParseNetworkMapCached(node, util.OvnNetworkIDs, true)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert string values to integers
+	networkIDsMap := make(map[string]int, len(networkIDsStrMap))
+	for netName, idStr := range networkIDsStrMap {
+		id, e := strconv.Atoi(idStr)
+		if e == nil {
+			networkIDsMap[netName] = id
+		}
+	}
+
+	return networkIDsMap, nil
 }
 
 func (b *NodeAnnotationBatcher) parseTunnelIDs(node *corev1.Node) (map[string]int, error) {
-	annotation, ok := node.Annotations[types.UDNLayer2NodeGRLRPTunnelIDAnnotation]
-	if !ok {
-		return nil, util.NewAnnotationNotSetError("could not find %q annotation", types.UDNLayer2NodeGRLRPTunnelIDAnnotation)
-	}
-
-	tunnelIDsStrMap := make(map[string]string)
-	if err := json.Unmarshal([]byte(annotation), &tunnelIDsStrMap); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal tunnel-ids annotation: %v", err)
+	tunnelIDsStrMap, err := b.cache.ParseNetworkMapCached(node, types.UDNLayer2NodeGRLRPTunnelIDAnnotation, true)
+	if err != nil {
+		return nil, err
 	}
 
 	result := make(map[string]int, len(tunnelIDsStrMap))

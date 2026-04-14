@@ -70,17 +70,17 @@ func (c *NodeAnnotationCache) updateNodeAnnotationState(node *corev1.Node, updat
 	if node == nil {
 		return nil
 	}
-	networkIDs, networkIDsErr := c.parseNetworkMapCached(node, util.OvnNetworkIDs, updateCache)
-	tunnelIDs, tunnelIDsErr := c.parseNetworkMapCached(node, types.UDNLayer2NodeGRLRPTunnelIDAnnotation, updateCache)
+	networkIDs, networkIDsErr := c.ParseNetworkMapCached(node, util.OvnNetworkIDs, updateCache)
+	tunnelIDs, tunnelIDsErr := c.ParseNetworkMapCached(node, types.UDNLayer2NodeGRLRPTunnelIDAnnotation, updateCache)
 	l3GatewayConfigs, l3GatewayConfigsErr := c.parseGatewayConfigMapCached(node, util.OvnNodeL3GatewayConfig, updateCache)
-	subnets, subnetsErr := c.parseSubnetMapCached(node, types.NodeSubnetsAnnotation, updateCache)
+	subnets, subnetsErr := c.ParseSubnetMapCached(node, types.NodeSubnetsAnnotation, updateCache)
 	return newNodeAnnotationState(node.Name, networkIDs, networkIDsErr, tunnelIDs, tunnelIDsErr, l3GatewayConfigs, l3GatewayConfigsErr, subnets, subnetsErr)
 }
 
 // ParseUDNLayer2NodeGRLRPTunnelIDCached returns the per-network tunnel ID from the
 // node annotation map using this cache.
 func (c *NodeAnnotationCache) ParseUDNLayer2NodeGRLRPTunnelIDCached(node *corev1.Node, netName string) (int, error) {
-	tunnelIDs, err := c.parseNetworkMapCached(node, types.UDNLayer2NodeGRLRPTunnelIDAnnotation, true)
+	tunnelIDs, err := c.ParseNetworkMapCached(node, types.UDNLayer2NodeGRLRPTunnelIDAnnotation, true)
 	if err != nil {
 		return types.InvalidID, err
 	}
@@ -95,12 +95,12 @@ func (c *NodeAnnotationCache) ParseUDNLayer2NodeGRLRPTunnelIDCached(node *corev1
 	return id, nil
 }
 
-// parseNetworkMapCached returns the parsed per-network string map for the
+// ParseNetworkMapCached returns the parsed per-network string map for the
 // given annotation, reusing a cached parse result when the raw annotation
 // value has not changed. If there is a cache miss, the annotation is parsed;
 // updateCache controls whether the parsed result replaces the cached value for
 // this node and annotation.
-func (c *NodeAnnotationCache) parseNetworkMapCached(node *corev1.Node, annotationName string, updateCache bool) (map[string]string, error) {
+func (c *NodeAnnotationCache) ParseNetworkMapCached(node *corev1.Node, annotationName string, updateCache bool) (map[string]string, error) {
 	annotation, ok := node.Annotations[annotationName]
 	if !ok {
 		return nil, util.NewAnnotationNotSetError("could not find %q annotation", annotationName)
@@ -160,7 +160,12 @@ func parseGatewayConfigMapValue(annotationName, annotation string) (map[string]*
 	return out, nil
 }
 
-func (c *NodeAnnotationCache) parseSubnetMapCached(node *corev1.Node, annotationName string, updateCache bool) (map[string][]*net.IPNet, error) {
+// ParseSubnetMapCached returns the parsed per-network subnet map for the
+// given annotation, reusing a cached parse result when the raw annotation
+// value has not changed. If there is a cache miss, the annotation is parsed;
+// updateCache controls whether the parsed result replaces the cached value for
+// this node and annotation.
+func (c *NodeAnnotationCache) ParseSubnetMapCached(node *corev1.Node, annotationName string, updateCache bool) (map[string][]*net.IPNet, error) {
 	annotation, ok := node.Annotations[annotationName]
 	if !ok {
 		return nil, util.NewAnnotationNotSetError("could not find %q annotation", annotationName)
