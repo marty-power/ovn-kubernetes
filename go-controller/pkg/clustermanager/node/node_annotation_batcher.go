@@ -320,10 +320,11 @@ func (b *NodeAnnotationBatcher) parseNetworkIDs(node *corev1.Node) (map[string]i
 	// Convert string values to integers
 	networkIDsMap := make(map[string]int, len(networkIDsStrMap))
 	for netName, idStr := range networkIDsStrMap {
-		id, e := strconv.Atoi(idStr)
-		if e == nil {
-			networkIDsMap[netName] = id
+		id, err := strconv.Atoi(idStr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse network ID for network %s: %v", netName, err)
 		}
+		networkIDsMap[netName] = id
 	}
 
 	return networkIDsMap, nil
