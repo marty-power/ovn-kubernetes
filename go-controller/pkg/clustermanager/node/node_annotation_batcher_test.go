@@ -50,12 +50,11 @@ func setupBatcherTest(t *testing.T, nodes ...*corev1.Node) (*NodeAnnotationBatch
 		}
 	}
 
-	nodeLister := newFakeNodeLister(nodes)
 	kubeInterface := &kube.Kube{KClient: fakeClient}
 
 	stopCh := make(chan struct{})
 	wg := &sync.WaitGroup{}
-	batcher := NewNodeAnnotationBatcher(kubeInterface, nodeLister, stopCh, wg)
+	batcher := NewNodeAnnotationBatcher(kubeInterface, fakeClient, stopCh, wg)
 
 	return batcher, fakeClient, stopCh, wg
 }

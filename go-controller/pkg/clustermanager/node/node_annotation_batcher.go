@@ -10,8 +10,11 @@ import (
 	"sync"
 	"time"
 
+	"context"
+
 	corev1 "k8s.io/api/core/v1"
-	listers "k8s.io/client-go/listers/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 
@@ -38,8 +41,8 @@ const (
 // This significantly reduces API server load when multiple UDNs are being created
 // or reconciled simultaneously while maintaining low latency for individual updates.
 type NodeAnnotationBatcher struct {
-	kube       kube.Interface
-	nodeLister listers.NodeLister
+	kube   kube.Interface
+	client kubernetes.Interface
 
 	// Pending updates per node
 	pendingUpdates map[string]*pendingNodeUpdate
@@ -68,10 +71,10 @@ type pendingNodeUpdate struct {
 	tunnelIDs   map[string]int          // network -> tunnel ID (types.NoTunnelID means don't update)
 }
 
-func NewNodeAnnotationBatcher(kube kube.Interface, nodeLister listers.NodeLister, stopChan chan struct{}, wg *sync.WaitGroup) *NodeAnnotationBatcher {
+func NewNodeAnnotationBatcher(kube kube.Interface, client kubernetes.Interface, stopChan chan struct{}, wg *sync.WaitGroup) *NodeAnnotationBatcher {
 	return &NodeAnnotationBatcher{
 		kube:           kube,
-		nodeLister:     nodeLister,
+		client:         client,
 		pendingUpdates: make(map[string]*pendingNodeUpdate),
 		currentDelay:   minBatchDelay,
 		triggerChan:    make(chan struct{}, 1),
@@ -230,12 +233,10 @@ func (b *NodeAnnotationBatcher) processBatch() {
 // updateNodeAnnotations applies all pending updates for a node using retry logic
 func (b *NodeAnnotationBatcher) updateNodeAnnotations(nodeName string, pending *pendingNodeUpdate) error {
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		node, err := b.nodeLister.Get(nodeName)
+		cnode, err := b.client.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
 		if err != nil {
 			return fmt.Errorf("failed to get node %s: %w", nodeName, err)
 		}
-
-		cnode := node.DeepCopy()
 
 		existingSubnets, err := b.parseSubnets(cnode)
 		if err != nil && !util.IsAnnotationNotSetError(err) {

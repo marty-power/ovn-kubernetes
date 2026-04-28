@@ -133,7 +133,7 @@ func NewClusterManager(
 	kubeInterface := &kube.Kube{KClient: ovnClient.KubeClient}
 	cm.nodeAnnotationBatcher = node.NewNodeAnnotationBatcher(
 		kubeInterface,
-		wf.NodeCoreInformer().Lister(),
+		ovnClient.KubeClient,
 		cm.batcherStopChan,
 		&cm.wgForBatcher,
 	)
