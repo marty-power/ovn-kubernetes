@@ -515,7 +515,7 @@ var _ = ginkgo.Describe("Cluster Controller Manager", func() {
 
 				nodeController = nodecontroller.NewController(f, "clustermanager-node", networkmanager.Default().Interface())
 
-				sncm, err := newUserDefinedNetworkClusterManager(fakeClient, f, networkmanager.Default().Interface(), recorder, nodeController)
+				sncm, err := newUserDefinedNetworkClusterManager(fakeClient, f, networkmanager.Default().Interface(), recorder, nodeController, nil)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 				// No valid networks passed — l2-primary should be detected as stale

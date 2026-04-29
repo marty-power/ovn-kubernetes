@@ -167,6 +167,7 @@ func TestHandleNetworkRefChangeCleanupWithZeroGraceOnStart(t *testing.T) {
 		nm,
 		nil,
 		nodeController,
+		nil,
 	)
 	g.Expect(ncc.init()).To(gomega.Succeed())
 	g.Expect(ncc.Start(context.Background())).To(gomega.Succeed())
@@ -242,6 +243,7 @@ func TestHandleNetworkRefChangeCleanupWithZeroGraceAfterStart(t *testing.T) {
 		nm,
 		nil,
 		nodeController,
+		nil,
 	)
 	g.Expect(ncc.init()).To(gomega.Succeed())
 	g.Expect(ncc.Start(context.Background())).To(gomega.Succeed())
@@ -316,6 +318,7 @@ func TestHandleNetworkRefChangeAllocatesOnActivation(t *testing.T) {
 		nm,
 		nil,
 		nodeController,
+		nil,
 	)
 	g.Expect(ncc.init()).To(gomega.Succeed())
 	g.Expect(ncc.Start(context.Background())).To(gomega.Succeed())
@@ -409,6 +412,7 @@ func TestReconcileNodeCleansUpOnNoHostSubnetTransition(t *testing.T) {
 		nm,
 		nil,
 		nodeController,
+		nil,
 	)
 	g.Expect(ncc.init()).To(gomega.Succeed())
 
@@ -472,6 +476,7 @@ func TestReconcileNodeMarksNodeSyncFailedOnCleanupError(t *testing.T) {
 		nm,
 		nil,
 		nodeController,
+		nil,
 	)
 	g.Expect(ncc.init()).To(gomega.Succeed())
 

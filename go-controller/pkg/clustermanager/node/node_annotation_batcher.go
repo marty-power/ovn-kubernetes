@@ -4,15 +4,15 @@
 package node
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strconv"
 	"sync"
 	"time"
 
-	"context"
-
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/retry"
@@ -98,28 +98,26 @@ func (b *NodeAnnotationBatcher) Start() {
 				b.mutex.Unlock()
 
 				// Wait for the calculated delay
-				if delay > 0 {
-					timer := time.NewTimer(delay)
-					select {
-					case <-timer.C:
-						// Delay complete, process batch
-					case <-b.stopChan:
-						timer.Stop()
-						// Set stopping flag to prevent requeuing failures during drain
+				timer := time.NewTimer(delay)
+				select {
+				case <-timer.C:
+					// Delay complete, process batch
+				case <-b.stopChan:
+					timer.Stop()
+					// Set stopping flag to prevent requeuing failures during drain
+					b.mutex.Lock()
+					b.stopping = true
+					queueLength := len(b.pendingUpdates)
+					b.mutex.Unlock()
+					// Drain all pending updates (no retries due to stopping flag)
+					for queueLength > 0 {
+						b.processBatch()
 						b.mutex.Lock()
-						b.stopping = true
-						queueLength := len(b.pendingUpdates)
+						queueLength = len(b.pendingUpdates)
 						b.mutex.Unlock()
-						// Drain all pending updates (no retries due to stopping flag)
-						for queueLength > 0 {
-							b.processBatch()
-							b.mutex.Lock()
-							queueLength = len(b.pendingUpdates)
-							b.mutex.Unlock()
-						}
-						klog.Info("Node annotation batcher stopped")
-						return
 					}
+					klog.Info("Node annotation batcher stopped")
+					return
 				}
 
 				b.processBatch()
@@ -235,6 +233,10 @@ func (b *NodeAnnotationBatcher) updateNodeAnnotations(nodeName string, pending *
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		cnode, err := b.client.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
 		if err != nil {
+			if apierrors.IsNotFound(err) {
+				klog.Warningf("Node %s not found, dropping annotation update", nodeName)
+				return nil
+			}
 			return fmt.Errorf("failed to get node %s: %w", nodeName, err)
 		}
 
@@ -304,7 +306,12 @@ func (b *NodeAnnotationBatcher) updateNodeAnnotations(nodeName string, pending *
 		}
 
 		klog.V(4).Infof("Updating node %s with batched annotations (%d networks)", nodeName, len(pending.hostSubnets)+len(pending.networkIDs)+len(pending.tunnelIDs))
-		return b.kube.UpdateNodeStatus(cnode)
+		err = b.kube.UpdateNodeStatus(cnode)
+		if apierrors.IsNotFound(err) {
+			klog.Warningf("Node %s not found during status update, dropping annotation update", nodeName)
+			return nil
+		}
+		return err
 	})
 }
 

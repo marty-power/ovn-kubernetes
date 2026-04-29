@@ -146,6 +146,29 @@ func (sncm *userDefinedNetworkClusterManager) CleanupStaleNetworks(validNetworks
 			staleNetworkControllers[netName] = oc
 		}
 
+		// network-ids covers L2 secondary UDNs (and others)
+		networkIDsMap, err := util.GetNodeNetworkIDsAnnotationNetworkIDs(node)
+		if err != nil {
+			networkIDsMap = nil
+		}
+		for netName := range networkIDsMap {
+			if netName == ovntypes.DefaultNetworkName {
+				continue
+			}
+			if _, ok := existingNetworksMap[netName]; ok {
+				continue
+			}
+			if _, ok := staleNetworkControllers[netName]; ok {
+				continue
+			}
+			oc, err := sncm.newDummyNetworkController(ovntypes.Layer2Topology, netName)
+			if err != nil {
+				klog.Errorf("Failed to create dummy controller for stale network %s: %v", netName, err)
+				continue
+			}
+			staleNetworkControllers[netName] = oc
+		}
+
 		// tunnel IDs cover L2 primary UDNs with IC
 		tunnelNetworks, err := util.GetNodeUDNLayer2TunnelIDAnnotationNetworkNames(node)
 		if err != nil {
